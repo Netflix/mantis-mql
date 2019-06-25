@@ -1,0 +1,57 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath "com.netflix.nebula:nebula-clojure-plugin:8.1.4"
+        classpath 'com.netflix.nebula:gradle-netflixoss-project-plugin:5.1.1'
+    }
+}
+
+allprojects {
+    apply plugin: 'nebula.netflixoss'
+    apply plugin: 'idea'
+    apply plugin: 'java'
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://clojars.org/repo" }
+}
+
+group = "io.mantisrx"
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'pmd'
+
+    group = 'io.mantisrx'
+
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+
+    if (project.hasProperty('useMavenLocal')) {
+        repositories {
+            mavenLocal()
+        }
+    }
+
+    repositories {
+        jcenter()
+    }
+
+    tasks.withType(Javadoc).all {
+        enabled = false
+    }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << "-Xlint:deprecation"
+    }
+}
+
+compileTestJava {
+    options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+}

@@ -1,0 +1,10 @@
+rootProject.name='mql-parent'
+
+//include "mql"
+//project(":mql").name = "mql"
+
+include "core"
+project(":core").name = "mql-core"
+
+include "mql-jvm"
+project(":mql-jvm").name = "mql-jvm"

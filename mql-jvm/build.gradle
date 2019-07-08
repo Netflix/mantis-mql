@@ -6,7 +6,7 @@ buildscript {
   }
   dependencies {
     classpath 'com.netflix.nebula:nebula-clojure-plugin:8.1.4'
-    classpath 'com.github.jengelman.gradle.plugins:shadow:4.0.4'
+    classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
   }
 }
 
@@ -43,60 +43,39 @@ dependencies {
   testCompile 'com.fasterxml.jackson.core:jackson-annotations:2.9.9'
 }
 
-/*
-shadowJar {
-  classifier 'shadow'
+jar {
+  enabled = false
 }
+jar.dependsOn(shadowJar)
 
-afterEvaluate {
-    publishing {
-      publications {
-        nebulaIvy(IvyPublication) {
-          configurations {
-            'shadow' {}
+shadowJar {
+    classifier = null
+      dependencies {
+        include dependency("org.clojure:clojure:1.8.0")
+        include dependency("org.clojure:data.json:0.2.3")
+        include dependency("instaparse:instaparse:1.4.9")
+        include dependency("io.reactivex:rxjava:1.+")
+        include dependency("io.reactivex:rxclojure:1.+")
+        include dependency(":mql-core")
+      }
+    relocate 'clojure', 'io.mantisrx.mql.shaded.clojure'
+    relocate 'instaparse', 'io.mantisrx.mql.shaded.instaparse'
+    relocate 'rx', 'io.mantisrx.mql.shaded.rx'
+  }
+
+publishing {
+  publications {
+    // to remove shaded dependency from pom.xml
+    withType(MavenPublication) {
+      pom.withXml {
+        asNode()
+          .dependencies
+          .dependency
+          .findAll {
+            it.artifactId.text() == "clojure"
           }
-          artifact(shadowJar) {
-            conf 'shadow'
-          }
-        }
-        // to remove shaded dependency from ivy.xml
-        withType(IvyPublication) {
-          descriptor.withXml {
-            asNode()
-              .dependencies
-              .dependency
-              .findAll {
-                it.@name == 'instaparse'
-              }
-              .each { it.parent().remove(it) }
-          }
-        }
+        .each { it.parent().remove(it) }
       }
     }
+  }
 }
-*/
-
-/*
-////////////////////////////////////////////////////////////////////////////////
-// Define a task that runs an nrepl server. The port is given with the nreplPort
-// property:
-//    gradlew nrepl -PnreplPort=9999
-// or put the property in ~/.gradle/gradle.propertie9s
-
-def nreplPortValue = project.hasProperty('nreplPort') ? project.nreplPort : '9999'
-
-configurations { nrepl }
-dependencies { nrepl 'org.clojure:tools.nrepl:0.2.2' }
-task nrepl(type: JavaExec) {
-  classpath project.sourceSets.main.clojure.srcDirs,
-            project.sourceSets.test.clojure.srcDirs,
-            sourceSets.main.runtimeClasspath,
-            sourceSets.test.runtimeClasspath,
-            configurations.nrepl
-
-              main = "clojure.main"
-              args '--eval', "(ns gradle-nrepl (:require [clojure.tools.nrepl.server :refer (start-server stop-server)]))",
-            '--eval', "(println \"Starting nrepl server on port $nreplPortValue\")",
-            '--eval', "(def server (start-server :port $nreplPortValue))"
-}
-*/

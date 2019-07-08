@@ -72,7 +72,12 @@ publishing {
           .dependencies
           .dependency
           .findAll {
-            it.artifactId.text() == "clojure"
+            ['clojure',
+             'data.json',
+             'instaparse',
+             'rxjava',
+             'rxclojure'
+            ].contains(it.artifactId.text())
           }
         .each { it.parent().remove(it) }
       }

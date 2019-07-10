@@ -6,7 +6,9 @@
     [io.mantisrx.mql.jvm.compilers.core :as compiler]
     [io.mantisrx.mql.compilers.core.operands :as operands]
     [io.mantisrx.mql.compilers.core.select :as select]
-    [instaparse.core :as insta]))
+    [instaparse.core :as insta])
+  (:gen-class)
+  )
 
 (defn query->pred
   "Computes a predicate which can be used to determine if a specific datum
@@ -110,4 +112,10 @@
       (list "stream")
       (flatten (insta/transform compiler/mql-evaluators extracted)))))
 
-(def parses? parser/parses?)
+(defn parses?
+  [query]
+  (parser/parses? query))
+
+(defn get-parse-error
+  [query]
+  (parser/query->parse-error query))

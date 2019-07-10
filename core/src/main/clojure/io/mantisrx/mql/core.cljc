@@ -6,7 +6,9 @@
             [io.mantisrx.mql.optimization :as opt]
             [instaparse.print :as iprint])
   #?(:clj
-     (:import java.util.Map)))
+     (:import java.util.Map))
+  (:gen-class)
+  )
 
 ;;;;
 ;;;; Parser

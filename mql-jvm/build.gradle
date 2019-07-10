@@ -16,6 +16,8 @@ apply plugin: 'com.github.johnrengelman.shadow'
 
 group = "io.mantisrx" 
 
+clojure.aotCompile = true
+
 repositories { 
   mavenCentral()
   maven { url "https://clojars.org/repo" }

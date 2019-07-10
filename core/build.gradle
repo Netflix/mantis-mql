@@ -6,7 +6,6 @@ buildscript {
   }
   dependencies {
     classpath "com.netflix.nebula:nebula-clojure-plugin:8.1.4"
-    classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
   }
 }
 
@@ -17,7 +16,6 @@ repositories {
 
 apply plugin: 'java'
 apply plugin: 'nebula.clojure'
-apply plugin: 'com.github.johnrengelman.shadow'
 
 clojure.aotCompile=true
 
@@ -37,12 +35,6 @@ dependencies {
   testCompile 'org.clojure:test.check:0.9.0'
   testCompile 'junit:junit:4.12'
   testCompile 'org.assertj:assertj-core:3.11.1'
-}
-
-shadowJar {
-   baseName = 'shadow'
-   classifier = null
-   version = null
 }
 
 ////////////////////////////////////////////////////////////////////////////////

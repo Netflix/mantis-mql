@@ -9,7 +9,7 @@
     java.util.List
     java.util.HashMap
     java.util.Map
-    io.mantisrx.mql.core.Query))
+    io.mantisrx.mql.jvm.core.Query))
 
 (defrecord
   MQLQuery

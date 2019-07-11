@@ -56,13 +56,11 @@ shadowJar {
         include dependency("org.clojure:clojure:1.8.0")
         include dependency("org.clojure:data.json:0.2.3")
         include dependency("instaparse:instaparse:1.4.9")
-        include dependency("io.reactivex:rxjava:1.+")
         include dependency("io.reactivex:rxclojure:1.+")
         include dependency(":mql-core")
       }
     relocate 'clojure', 'io.mantisrx.mql.shaded.clojure'
     relocate 'instaparse', 'io.mantisrx.mql.shaded.instaparse'
-    relocate 'rx', 'io.mantisrx.mql.shaded.rx'
   }
 
 publishing {
@@ -77,7 +75,6 @@ publishing {
             ['clojure',
              'data.json',
              'instaparse',
-             'rxjava',
              'rxclojure'
             ].contains(it.artifactId.text())
           }

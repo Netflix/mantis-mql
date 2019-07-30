@@ -119,3 +119,9 @@
 (defn get-parse-error
   [query]
   (parser/query->parse-error query))
+
+(defn is-aggregate
+  [query]
+  (let
+    [parsed (parser/parser query)]
+    (<= 1 (count (util/extract-clause :AGG_QUERY parsed)))))

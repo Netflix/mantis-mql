@@ -59,6 +59,7 @@ shadowJar {
         include dependency("io.reactivex:rxclojure:1.+")
         include dependency(":mql-core")
       }
+    relocate 'clojure', 'io.mantisrx.mql.shaded.clojure'
     relocate 'instaparse', 'io.mantisrx.mql.shaded.instaparse'
   }
 

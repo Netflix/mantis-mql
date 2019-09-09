@@ -3,6 +3,7 @@
             [rx.lang.clojure.core :as rx]
             [rx.lang.clojure.interop :as rxi]
             [io.mantisrx.mql.transformers :as t]
+            [io.mantisrx.mql.util :as util]
             [io.mantisrx.mql.properties :as mqlp]
             [io.mantisrx.mql.interfaces.browser :as browser])
   (:import rx.Observable java.util.concurrent.TimeUnit))

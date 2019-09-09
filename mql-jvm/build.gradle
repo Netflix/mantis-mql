@@ -28,12 +28,11 @@ compileTestJava {
 }
 
 dependencies {
-  compile project(":mql-core")
   compile 'org.clojure:clojure:1.8.0'
   compile 'org.clojure:data.json:0.2.3'
   compile 'instaparse:instaparse:1.4.9'
-  compile 'io.reactivex:rxjava:1.+'
-  compile 'io.reactivex:rxclojure:1.+'
+  compile 'io.reactivex:rxjava:1.3.8'
+  compile 'io.reactivex:rxclojure:1.0.0'
   testCompile 'criterium:criterium:0.4.4'
   testCompile 'org.clojure:test.check:0.9.0'
   testCompile 'junit:junit:4.12'
@@ -56,8 +55,7 @@ shadowJar {
         include dependency("org.clojure:clojure:1.8.0")
         include dependency("org.clojure:data.json:0.2.3")
         include dependency("instaparse:instaparse:1.4.9")
-        include dependency("io.reactivex:rxclojure:1.+")
-        include dependency(":mql-core")
+        include dependency("io.reactivex:rxclojure:1.3.8")
       }
     relocate 'instaparse', 'io.mantisrx.mql.shaded.instaparse'
   }

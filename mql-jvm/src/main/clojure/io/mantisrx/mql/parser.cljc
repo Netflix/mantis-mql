@@ -1,6 +1,7 @@
 (ns io.mantisrx.mql.parser
   (:require [instaparse.core :as insta]
-            [instaparse.print :as iprint]))
+            [instaparse.print :as iprint]
+            [clojure.string :as string]))
 
 (def mql "
 QUERY = AGG_QUERY | NORMAL_QUERY
@@ -87,7 +88,7 @@ not_kw = 'NOT' <whitespace> | 'not' <whitespace> | '!'
 distinct_kw = 'DISTINCT' | 'distinct'
 desc_kw = 'DESC' | 'desc'")
 
-(def parser (insta/parser mql))
+(def parser (comp (insta/parser mql) string/trim))
 
 (defn parses?
   [query]

@@ -210,14 +210,13 @@
       [q "select a, 'b' where a == 2"
        context {"stream" (Observable/just {"a" 1} {"b" 2} {"a" 2})}
        result (rxb/into [] (eval-mql q context))]
-      (is  (= ["a" 2 "b" "b"])))
+      (is (= [{"a" 2 "b" "b"}] result))))
   (testing "selecting a numeric constant"
     (let
       [q "select a, 2 where a == 2"
        context {"stream" (Observable/just {"a" 1} {"b" 2} {"a" 2})}
        result (rxb/into [] (eval-mql q context))]
-      (is  (= ["a" 2 2 2]))))
-  ))
+      (is (= [{"a" 2 "2" 2}] result)))))
 
 ;;;;
 ;;;; As Clause
@@ -230,3 +229,15 @@
        context {"stream" (Observable/just {"a" 1})}
        result (rxb/into [] (eval-mql q context "client"))]
       (is (= [{"test_id" 1, "code" "b", "pi" 3.14, "prop" 1}] result)))))
+
+;;;;
+;;;; Spaces in Properties
+;;;;
+
+(deftest test-spaces-in-property-names
+  (testing "selecting a space in a property name"
+    (let
+      [q "select a, e['c '] where e['c '] == 2"
+       context {"stream" (Observable/just {"a" 1, "c " 2} {"b" 2} {"a" 2 "c " 3})}
+       result (rxb/into [] (eval-mql q context))]
+      (is  (= [{"a" 1 "c " 2}] result)))))

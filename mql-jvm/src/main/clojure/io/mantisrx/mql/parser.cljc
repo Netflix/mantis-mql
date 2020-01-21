@@ -87,7 +87,7 @@ not_kw = 'NOT' <whitespace> | 'not' <whitespace> | '!'
 distinct_kw = 'DISTINCT' | 'distinct'
 desc_kw = 'DESC' | 'desc'")
 
-(def parser (insta/parser mql))
+(def parser (comp (insta/parser mql) clojure.string/trim))
 
 (defn parses?
   [query]

@@ -47,3 +47,5 @@
              :property_with_as io.mantisrx.mql.compilers.core.operands/property-with-as->fn}
    "full" {}
    })
+
+(def query "SELECT * FROM stream WHERE e[\"dimensions\"][\"test.groupname\"][*] == 1")

@@ -71,6 +71,28 @@
       (< (mod (hasher str-to-hash salt) factor) threshold) true
       :else false)))
 
+(defn ->timer [] (java.util.Timer.))
+
+(defn fixed-rate
+  ([f per] (fixed-rate f (->timer) 0 per))
+  ([f timer per] (fixed-rate f timer 0 per))
+  ([f timer dlay per]
+    (let [tt (proxy [java.util.TimerTask] [] (run [] (f)))]
+      (.scheduleAtFixedRate timer tt dlay per)
+      #(.cancel tt))))
+
+(defn rps-sampler
+  "A sampler which allows a set number of elements through each second."
+  [rps]
+  (let
+    [cnt (atom 0)
+     t (->timer)
+     task (fixed-rate #(reset! cnt 0) t 1000)]
+    (fn [datum] (if
+                  (< @cnt rps)
+                  (do (swap! cnt inc) true)
+                  false))))
+
 (defn- parse-json
   "A cross platform json parsing function which defers to host specific
    parsers.
@@ -109,6 +131,16 @@
                                   (map (fn [name] {name (* factor (get datum name))}) names)))))
       identity)))
 
+(defn percent-sample-config->sampler
+  "Converts a percentile sampler ie. 2% 0.5% 0.1 % to a function
+   which can then be used to determine sampling eligibility by applying to
+   data. Intended for use with filter functions and behaves like a predicate.
+
+   n: The percent to sample. 2% for two percent and 99.5% for ninety-nine point five."
+  [n]
+  {:sample (partial random-sampler (* 100 n) n)
+   :extrapolation identity})
+
 
 (defn sample-config->sampler
   "Converts a json sampler configuration into a function which can then
@@ -137,6 +169,8 @@
                (partial random-sampler factor threshold)
                (= strategy "STICKY")
                (partial sticky-sampler ks salt factor threshold)
+               (= strategy "RPS")
+               (rps-sampler threshold)
                :else default-sampler)
      :extrapolation (if extrapolate?
                       (sample-config->extrapolation-fn config)

@@ -50,6 +50,7 @@
 ;;;;
 
 (def sample-config->sampler io.mantisrx.mql.compilers.core.sampling/sample-config->sampler)
+(def percent-sample-config->sampler io.mantisrx.mql.compilers.core.sampling/percent-sample-config->sampler)
 
 ;;;;
 ;;;; Operands
@@ -75,7 +76,9 @@
    :WHERE_FALSE (fn [& args] {:where (fn [datum] false)})
    :JOIN join->fn
    :HAVING io.mantisrx.mql.compilers.core.where/having-clause->fn
-   :SAMPLE sample-config->sampler
+   :SAMPLE identity
+   :json_sample_config sample-config->sampler
+   :percent_sample_config percent-sample-config->sampler
    :AGG_OP io.mantisrx.mql.compilers.core.select/agg-op->selector+aggregator
    :as_clause (fn [n] (n {}))
    :StarBinaryExpr io.mantisrx.mql.compilers.core.where/star-binary-expr->pred

@@ -62,7 +62,9 @@ property_with_as = property <whitespace> as_clause
 property = pword | <'e'>(<'['> (q_pword | property_number) <']'>)+
 star_property = pword | <'e'>(<'['> (q_pword | '*') <']'>)+
 sw_property = <'e'>(<'['> <'^'> q_pword <']'>)
-<sample_config> = #'\\{.*?\\}'
+<sample_config> = percent_sample_config | json_sample_config
+json_sample_config = #'\\{.*?\\}'
+percent_sample_config = number <whitespace?> '%'
 
 select_kw = 'select' | 'SELECT'
 as_kw = 'as' | 'AS'

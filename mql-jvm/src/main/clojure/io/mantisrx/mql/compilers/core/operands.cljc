@@ -21,7 +21,7 @@
   [parse-fn literal & names]
   (let [l (parse-fn literal)]
     (with-meta (fn [_] l) {:name (if (empty? names)
-                                   [l]
+                                   [(str l)]
                                    (map str names)
                                    )})))  
 

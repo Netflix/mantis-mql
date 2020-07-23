@@ -6,7 +6,10 @@
     [io.mantisrx.mql.jvm.compilers.core :as compiler]
     [io.mantisrx.mql.compilers.core.operands :as operands]
     [io.mantisrx.mql.compilers.core.select :as select]
+    [rx.lang.clojure.core :as rx]
+    [rx.lang.clojure.interop :as rxi]
     [instaparse.core :as insta])
+  (:import rx.Observable)
   (:gen-class)
   )
 
@@ -125,3 +128,102 @@
   (let
     [parsed (parser/parser query)]
     (<= 1 (count (util/extract-clause :AGG_QUERY parsed)))))
+
+(defn query->groupby
+  "Extracts a function of datum -> key for the group by key."
+  [query]
+  (comp
+    doall
+    (->> (mql/parser query)
+         (util/extract-clause :GROUP)
+         (insta/transform compiler/mql-evaluators)
+         first
+         :groupby)))
+
+(defn query->orderby
+  "Extracts a function of Observable -> Observable in which the result
+   is sorted."
+  [query]
+  (let [ordering (->>
+                    (mql/parser query)
+                    (util/extract-clause :ORDER)
+                    (insta/transform compiler/mql-evaluators)
+                    first)
+         order-comparator (:order-comparator ordering)
+         prop (:orderby ordering)
+         fun (rxi/fn [x y] (int (order-comparator (prop x) (prop y))))]
+    (fn [^Observable coll]
+      (rx/mapcat rx/seq->o (.toSortedList coll fun)))))
+
+(defn query->limit
+  "Extracts the limit from a query."
+  [query]
+  (->>
+    (mql/parser query)
+    (util/extract-clause :LIMIT)
+    (insta/transform compiler/mql-evaluators)
+    first
+    :limit))
+
+(defn query->window
+  "Extracts the window seconds from the query."
+  [query]
+  (->> (mql/parser query)
+       (util/extract-clause :WINDOW)
+       (insta/transform compiler/mql-evaluators)
+       first
+       :window))
+
+(defn query->having-pred
+  "Computes a predicate which can be used to determine if a specific datum
+   satisfies the HAVING clause of this query.
+
+   mql-query: A string representing the query.
+
+   Returns: A predicate function of datum -> boolean."
+  [mql-query]
+  (let
+    [parsed (mql/parser mql-query)
+     extracted (->> mql-query
+                    mql/parser
+                 (util/extract-clause :HAVING)
+                 first
+                 second)]
+    (if (nil? extracted) (fn [_] true)
+      (insta/transform compiler/mql-evaluators extracted))))
+
+(defn query->sampler
+  "Computes a sampling function which accepts a datum and returns a boolean
+   indicating wether or not the datum should be sampled.
+
+   mql-query: A string representing the mql query.
+
+   Returns: A function of datum -> boolean."
+  [mql-query]
+  (let
+    [parsed (mql/parser mql-query)
+     extracted (first (util/extract-clause :SAMPLE parsed))]
+    (if (nil? extracted)
+      (fn [_] true)
+      (:sample (insta/transform compiler/mql-evaluators extracted)))))
+
+(defn query->subjects
+  ^java.util.List
+  [mql-query]
+  (let
+    [parsed (mql/parser mql-query)
+     extracted (rest (first (util/extract-clause :FROM parsed)))]
+    (insta/transform compiler/mql-evaluators extracted)))
+
+(defn query->extrapolator
+  [mql-query]
+  (let
+    [evaluators (merge compiler/mql-evaluators {:SAMPLE io.mantisrx.mql.compilers.core.sampling/sample-config->extrapolation-fn})
+     clause
+     ( ->> mql-query
+         mql/parser
+         (util/extract-clause :SAMPLE)
+         first)]
+    (if (nil? clause)
+      identity
+      (insta/transform evaluators clause))))

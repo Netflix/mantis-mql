@@ -207,14 +207,6 @@
       (fn [_] true)
       (:sample (insta/transform compiler/mql-evaluators extracted)))))
 
-(defn query->subjects
-  ^java.util.List
-  [mql-query]
-  (let
-    [parsed (mql/parser mql-query)
-     extracted (rest (first (util/extract-clause :FROM parsed)))]
-    (insta/transform compiler/mql-evaluators extracted)))
-
 (defn query->extrapolator
   [mql-query]
   (let

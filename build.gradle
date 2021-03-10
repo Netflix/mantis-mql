@@ -6,8 +6,8 @@ buildscript {
         }
     }
     dependencies {
-        classpath "com.netflix.nebula:nebula-clojure-plugin:8.1.4"
-        classpath 'com.netflix.nebula:gradle-netflixoss-project-plugin:5.1.1'
+        classpath "com.netflix.nebula:nebula-clojure-plugin:9.4.3"
+        classpath 'com.netflix.nebula:gradle-netflixoss-project-plugin:9.1.0'
     }
 }
 

@@ -228,7 +228,15 @@
       [q "select 1 as 'test_id', 'b' as 'code', 3.14 as 'pi', a as 'prop' from stream"
        context {"stream" (Observable/just {"a" 1})}
        result (rxb/into [] (eval-mql q context "client"))]
-      (is (= [{"test_id" 1, "code" "b", "pi" 3.14, "prop" 1}] result)))))
+      (is (= [{"test_id" 1, "code" "b", "pi" 3.14, "prop" 1}] result))))
+
+  (testing "select a nil value with as clause does not insert it in client mode"
+    (let
+      [q "select a as 'test', b as 'test' from stream"
+       context {"stream" (Observable/just {"a" 1})}
+       result (rxb/into [] (eval-mql q context "client"))]
+      (is (= [{"test" 1}] result))))
+  )
 
 ;;;;
 ;;;; Spaces in Properties

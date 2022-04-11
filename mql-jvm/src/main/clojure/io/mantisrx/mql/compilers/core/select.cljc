@@ -11,9 +11,11 @@
    new nested TreeMaps as necessary if nested levels do not exist."
   {:static true}
   [m [k & ks] v]
-  (if ks
-    (.put ^java.util.Map m k (map-assoc-in! (get m k (java.util.TreeMap.)) ks v))
-    (.put ^java.util.Map m k v))
+  (if (not (nil? v))
+    (if ks
+      (.put ^java.util.Map m k (map-assoc-in! (get m k (java.util.TreeMap.)) ks v))
+      (.put ^java.util.Map m k v))
+    m)
   m))
 
 (defn asterisk->fn

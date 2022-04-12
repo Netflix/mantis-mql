@@ -1,13 +1,19 @@
 buildscript {
     repositories {
+        gradlePluginPortal()
         mavenCentral()
         maven {
             url "https://plugins.gradle.org/m2/"
         }
     }
     dependencies {
+        classpath 'com.netflix.nebula:gradle-netflixoss-project-plugin:9.4.2'
         classpath "com.netflix.nebula:nebula-clojure-plugin:9.4.3"
-        classpath 'com.netflix.nebula:gradle-netflixoss-project-plugin:9.4.1'
+        classpath 'io.mantisrx:mantis-gradle-plugin:1.2.+'
+        classpath "io.freefair.gradle:lombok-plugin:5.3.3.3"
+        classpath 'eu.appsatori:gradle-fatjar-plugin:0.3'
+        classpath "com.github.jengelman.gradle.plugins:shadow:6.1.0"
+        classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
     }
 }
 
@@ -35,23 +41,34 @@ subprojects {
 
     if (project.hasProperty('useMavenLocal')) {
         repositories {
-            mavenLocal()
+            mavenCentral()
+                exclusiveContent {
+                    forRepository {
+                        maven {
+                            url "https://artifactory-oss.prod.netflix.net/artifactory/required-jcenter-modules-backup"
+                        }
+                    }
+                    filter {
+                        includeGroupByRegex "net\\.andreinc.*"
+                    }
+                }
+        }
+
+
+        repositories {
+            mavenCentral()
+        }
+
+        tasks.withType(Javadoc).all {
+            enabled = false
+        }
+
+        tasks.withType(JavaCompile) {
+            options.compilerArgs << "-Xlint:deprecation"
         }
     }
 
-    repositories {
-        mavenCentral()
+    compileTestJava {
+        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
     }
-
-    tasks.withType(Javadoc).all {
-        enabled = false
-    }
-
-    tasks.withType(JavaCompile) {
-        options.compilerArgs << "-Xlint:deprecation"
-    }
-}
-
-compileTestJava {
-    options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
 }

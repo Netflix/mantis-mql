@@ -1,10 +1,15 @@
+plugins {
+    id 'com.gradle.enterprise' version '3.4.1'
+}
+
 rootProject.name='mql-parent'
-
-//include "mql"
-//project(":mql").name = "mql"
-
-//include "core"
-//project(":core").name = "mql-core"
-
 include "mql-jvm"
 project(":mql-jvm").name = "mql-jvm"
+
+gradleEnterprise {
+    buildScan {
+        publishAlways()
+        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+        termsOfServiceAgree = 'yes'
+    }
+}

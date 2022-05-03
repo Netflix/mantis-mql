@@ -28,6 +28,11 @@ allprojects {
     // Disable license check for netflixoss gradle 7.x compatibility
     gradle.startParameter.excludedTaskNames += "licenseMain"
     gradle.startParameter.excludedTaskNames += "licenseTest"
+
+    clojure {
+        warnOnReflection = true
+        aotCompile = true
+    }
 }
 
 

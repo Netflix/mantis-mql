@@ -24,7 +24,11 @@
     java.util.List
     java.util.HashMap
     java.util.Map
-    io.mantisrx.mql.jvm.core.Query))
+    io.mantisrx.mql.jvm.core.Query)
+  (:gen-class 
+    :name io.mantisrx.mql.jvm.interfaces.MQLServer
+    :methods [#^{:static true} [parses [String] Boolean]
+              #^{:static true} [parse [String] io.mantisrx.mql.jvm.core.Query]]))
 
 (defrecord
   MQLQuery
@@ -84,3 +88,14 @@
 (defn ^:export makeQuery 
   [id query]
   (make-query id query))
+
+(defn parse
+  ^Query
+  [^String query]
+  (make-query "" query))
+
+(defn parses
+  ^Boolean
+  [^String query]
+  (parser/parses? query))
+

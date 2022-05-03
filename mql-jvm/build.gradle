@@ -1,22 +1,17 @@
-buildscript {
-  repositories { 
-    maven {
-    url "https://plugins.gradle.org/m2/"
-    }
-  }
-  dependencies {
-    classpath "com.netflix.nebula:nebula-clojure-plugin:9.4.3"
-    classpath 'com.github.jengelman.gradle.plugins:shadow:6.1.0'
-  }
+plugins {
+  id 'netflix.jvm-library'
+  id "nebula.netflixoss"
+  id "nebula.clojure"
+  id "com.github.johnrengelman.shadow"
 }
-
-apply plugin: 'nebula.clojure'
-apply plugin: 'java'
-apply plugin: 'com.github.johnrengelman.shadow'
-
 group = "io.mantisrx" 
 
 clojure.aotCompile = true
+
+configurations {
+    shadedAndRelocatedConfiguration
+    implementation.extendsFrom shadedAndRelocatedConfiguration
+}
 
 repositories { 
   mavenCentral()
@@ -28,10 +23,10 @@ compileTestJava {
 }
 
 dependencies {
-  implementation 'org.clojure:clojure:1.8.0'
-  implementation 'org.clojure:data.json:0.2.3'
-  implementation 'instaparse:instaparse:1.4.9'
-  implementation 'io.reactivex:rxjava:1.3.8'
+  shadedAndRelocatedConfiguration 'org.clojure:clojure:1.8.0'
+  shadedAndRelocatedConfiguration 'org.clojure:data.json:0.2.3'
+  shadedAndRelocatedConfiguration 'instaparse:instaparse:1.4.9'
+  shadedAndRelocatedConfiguration 'io.reactivex:rxjava:1.3.8'
   implementation 'io.reactivex:rxclojure:1.0.0'
   testImplementation 'criterium:criterium:0.4.4'
   testImplementation 'org.clojure:test.check:0.9.0'
@@ -44,64 +39,54 @@ dependencies {
   testImplementation 'com.fasterxml.jackson.core:jackson-annotations:2.9.9'
 }
 
-jar {
-  enabled = false
-}
-jar.dependsOn(shadowJar)
-
 shadowJar {
-    classifier = null
-      dependencies {
-        include dependency("org.clojure:clojure:1.8.0")
-        include dependency("org.clojure:data.json:0.2.3")
-        include dependency("instaparse:instaparse:1.4.9")
-        include dependency("io.reactivex:rxclojure:1.3.8")
-      }
+    classifier null // this configuration is used to produce only the shadowed jar
     relocate 'instaparse', 'io.mantisrx.mql.shaded.instaparse'
     relocate 'clojure', 'io.mantisrx.mql.shaded.clojure'
     relocate 'rx.lang.clojure', 'io.mantisrx.mql.shaded.rx.lang.clojure'
-  }
-
-publishing {
-  publications {
-    // to remove shaded dependency from pom.xml
-    withType(MavenPublication) {
-      pom.withXml {
-        asNode()
-          .dependencies
-          .dependency
-          .findAll {
-            ['clojure',
-             'data.json',
-             'instaparse',
-             'rxclojure'
-            ].contains(it.artifactId.text())
-          }
-        .each { it.parent().remove(it) }
-      }
-    }
-  }
+    configurations = [project.configurations.shadedAndRelocatedConfiguration] // shadowJar should only bundle dependencies on this configuration
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Define a task that runs an nrepl server. The port is given with the nreplPort
-// property:
-//    gradlew nrepl -PnreplPort=9999
-// or put the property in ~/.gradle/gradle.propertie9s
+jar {
+    enabled = false // this configuration is used to produce only the shadowed jar
+}
+jar.dependsOn shadowJar // this configuration is used to produce only the shadowed jar
 
-def nreplPortValue = project.hasProperty('nreplPort') ? project.nreplPort : '9999'
-
-configurations { nrepl }
-dependencies { nrepl 'org.clojure:tools.nrepl:0.2.2' }
-task nrepl(type: JavaExec) {
-  classpath project.sourceSets.main.clojure.srcDirs,
-            project.sourceSets.test.clojure.srcDirs,
-            sourceSets.main.runtimeClasspath,
-            sourceSets.test.runtimeClasspath,
-            configurations.nrepl
-
-              main = "clojure.main"
-              args '--eval', "(ns gradle-nrepl (:require [clojure.tools.nrepl.server :refer (start-server stop-server)]))",
-            '--eval', "(println \"Starting nrepl server on port $nreplPortValue\")",
-            '--eval', "(def server (start-server :port $nreplPortValue))"
+afterEvaluate {
+    publishing {
+      publications {
+        // to remove shaded dependency from ivy.xml
+        withType(IvyPublication) {
+          descriptor.withXml {
+            asNode()
+              .dependencies
+              .dependency
+              .findAll {
+                ['clojure',
+                 'data.json',
+                 'instaparse',
+                 'rxclojure'
+                ].contains(it.artifactId.text())
+              }
+              .each { it.parent().remove(it) }
+          }
+        }
+        // to remove shaded dependency from pom.xml
+        withType(MavenPublication) {
+          pom.withXml {
+            asNode()
+              .dependencies
+              .dependency
+              .findAll {
+                ['clojure',
+                 'data.json',
+                 'instaparse',
+                 'rxclojure'
+                ].contains(it.artifactId.text())
+              }
+              .each { it.parent().remove(it) }
+          }
+        }
+      }
+    }
 }

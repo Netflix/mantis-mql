@@ -1,6 +1,5 @@
 plugins {
   id 'netflix.jvm-library'
-  id "nebula.netflixoss"
   id "nebula.clojure"
   id "com.github.johnrengelman.shadow"
 }

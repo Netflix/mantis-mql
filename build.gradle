@@ -1,10 +1,35 @@
-plugins {
-  id 'netflix.nebula'
-  id 'nebula.release'
-  id 'netflix.jvm-library'
-  id "nebula.clojure" version "11.0.1"
-  id "com.github.johnrengelman.shadow" version "7.1.2"
+buildscript {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath 'com.netflix.nebula:gradle-netflixoss-project-plugin:9.4.2'
+        classpath 'io.mantisrx:mantis-gradle-plugin:1.2.+'
+        classpath "io.freefair.gradle:lombok-plugin:5.3.3.3"
+        classpath 'eu.appsatori:gradle-fatjar-plugin:0.3'
+        classpath "com.github.jengelman.gradle.plugins:shadow:6.1.0"
+        classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
+        classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
+        classpath 'gradle.plugin.com.github.johnrengelman:shadow:7.1.0'
+        classpath 'com.netflix.nebula:nebula-clojure-plugin:11.0.1'
+    }
 }
+
+allprojects {
+    apply plugin: 'nebula.netflixoss'
+    apply plugin: 'nebula.release'
+    apply plugin: 'nebula.clojure'
+    apply plugin: 'com.github.johnrengelman.shadow'
+
+    // Disable license check for netflixoss gradle 7.x compatibility
+    gradle.startParameter.excludedTaskNames += "licenseMain"
+    gradle.startParameter.excludedTaskNames += "licenseTest"
+}
+
 
 repositories {
     mavenCentral()
@@ -12,6 +37,7 @@ repositories {
 }
 
 group = "io.mantisrx"
+
 
 subprojects {
     apply plugin: 'java-library'

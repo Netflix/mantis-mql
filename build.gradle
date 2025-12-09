@@ -7,7 +7,7 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'com.netflix.nebula:gradle-netflixoss-project-plugin:12.0.0'
+        classpath 'com.netflix.nebula:gradle-netflixoss-project-plugin:11.3.1'
         classpath 'io.mantisrx:mantis-gradle-plugin:1.2.+'
         classpath "io.freefair.gradle:lombok-plugin:5.3.3.3"
         classpath 'eu.appsatori:gradle-fatjar-plugin:0.3'
@@ -85,12 +85,6 @@ subprojects {
 
     compileTestJava {
         options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-    }
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 

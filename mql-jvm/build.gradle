@@ -17,7 +17,8 @@ dependencies {
   shadedAndRelocatedConfiguration 'org.clojure:data.json:0.2.3'
   shadedAndRelocatedConfiguration 'instaparse:instaparse:1.4.9'
   shadedAndRelocatedConfiguration 'io.reactivex:rxjava:1.3.8'
-  implementation 'io.reactivex:rxclojure:1.0.0'
+  // rxclojure must also be shaded because it uses clojure.* classes
+  shadedAndRelocatedConfiguration 'io.reactivex:rxclojure:1.0.0'
   testImplementation 'criterium:criterium:0.4.4'
   testImplementation 'org.clojure:test.check:0.9.0'
   testImplementation 'junit:junit:4.12'
@@ -72,15 +73,30 @@ class ClojureSourceRelocateTransformer implements Transformer {
 
         // Apply all relocations to the source content
         // Order matters: do more specific patterns first (rx.lang.clojure before clojure)
+        // This prevents double-shading (e.g., clojure within io.mantisrx.mql.shaded.rx.lang.clojure)
         def sortedRelocations = relocations.sort { a, b -> b.key.length() <=> a.key.length() }
         
+        // Use a placeholder approach to prevent double-replacement
+        // First pass: replace with unique placeholders
+        def placeholders = [:]
+        int idx = 0
         sortedRelocations.each { pattern, destination ->
-            // Replace namespace references (dot notation): clojure.core -> io.mantisrx.mql.shaded.clojure.core
-            content = content.replace(pattern + '.', destination + '.')
-            // Replace path references (slash notation): clojure/core -> io/mantisrx/mql/shaded/clojure/core  
-            content = content.replace(pattern + '/', destination + '/')
-            // Replace quoted symbols: 'clojure.core -> 'io.mantisrx.mql.shaded.clojure.core
-            content = content.replace("'" + pattern, "'" + destination)
+            def placeholder = "##SHADE_PLACEHOLDER_${idx}##"
+            placeholders[placeholder] = destination
+            
+            // Replace namespace references (dot notation): clojure.core -> placeholder.core
+            content = content.replace(pattern + '.', placeholder + '.')
+            // Replace path references (slash notation): clojure/core -> placeholder/core  
+            content = content.replace(pattern + '/', placeholder + '/')
+            // Replace quoted symbols: 'clojure.core -> 'placeholder.core
+            content = content.replace("'" + pattern, "'" + placeholder)
+            
+            idx++
+        }
+        
+        // Second pass: replace placeholders with actual shaded names
+        placeholders.each { placeholder, destination ->
+            content = content.replace(placeholder, destination)
         }
 
         transformedFiles[path] = content.getBytes('UTF-8')

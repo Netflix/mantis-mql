@@ -13,7 +13,7 @@ compileTestJava {
 }
 
 dependencies {
-  shadedAndRelocatedConfiguration 'org.clojure:clojure:1.8.0'
+  shadedAndRelocatedConfiguration 'org.clojure:clojure:1.9.0'
   shadedAndRelocatedConfiguration 'org.clojure:data.json:0.2.3'
   shadedAndRelocatedConfiguration 'instaparse:instaparse:1.4.9'
   shadedAndRelocatedConfiguration 'io.reactivex:rxjava:1.3.8'

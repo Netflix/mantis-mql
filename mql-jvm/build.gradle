@@ -33,11 +33,91 @@ dependencies {
 //gradle.startParameter.excludedTaskNames += "licenseMain"
 //gradle.startParameter.excludedTaskNames += "licenseTest"
 
+import com.github.jengelman.gradle.plugins.shadow.transformers.Transformer
+import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext
+import shadow.org.apache.tools.zip.ZipOutputStream
+import shadow.org.apache.tools.zip.ZipEntry
+import org.gradle.api.file.FileTreeElement
+
+/**
+ * Custom transformer that rewrites .clj/.cljc source file CONTENTS during shading.
+ * 
+ * This is required because shadowJar's relocate only transforms:
+ *   - .class file bytecode references
+ *   - Resource paths (file locations)
+ * 
+ * But it does NOT transform the actual text content inside .clj source files.
+ * Clojure loads and compiles .clj source files at runtime, and these files 
+ * contain hardcoded namespace references like (in-ns 'clojure.core) and 
+ * (import ...) that must match the relocated package structure.
+ */
+class ClojureSourceRelocateTransformer implements Transformer {
+    private Map<String, String> relocations = [:]
+    private Map<String, byte[]> transformedFiles = [:]
+
+    void relocate(String pattern, String destination) {
+        relocations[pattern] = destination
+    }
+
+    @Override
+    boolean canTransformResource(FileTreeElement element) {
+        def path = element.relativePath.pathString
+        return path.endsWith('.clj') || path.endsWith('.cljc')
+    }
+
+    @Override
+    void transform(TransformerContext context) {
+        def path = context.path
+        def content = context.is.getText('UTF-8')
+
+        // Apply all relocations to the source content
+        // Order matters: do more specific patterns first (rx.lang.clojure before clojure)
+        def sortedRelocations = relocations.sort { a, b -> b.key.length() <=> a.key.length() }
+        
+        sortedRelocations.each { pattern, destination ->
+            // Replace namespace references (dot notation): clojure.core -> io.mantisrx.mql.shaded.clojure.core
+            content = content.replace(pattern + '.', destination + '.')
+            // Replace path references (slash notation): clojure/core -> io/mantisrx/mql/shaded/clojure/core  
+            content = content.replace(pattern + '/', destination + '/')
+            // Replace quoted symbols: 'clojure.core -> 'io.mantisrx.mql.shaded.clojure.core
+            content = content.replace("'" + pattern, "'" + destination)
+        }
+
+        transformedFiles[path] = content.getBytes('UTF-8')
+    }
+
+    @Override
+    boolean hasTransformedResource() {
+        return !transformedFiles.isEmpty()
+    }
+
+    @Override
+    void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) {
+        transformedFiles.each { path, bytes ->
+            def zipEntry = new ZipEntry(path)
+            os.putNextEntry(zipEntry)
+            os.write(bytes)
+            os.closeEntry()
+        }
+        transformedFiles.clear()
+    }
+}
+
 shadowJar {
     classifier null // this configuration is used to produce only the shadowed jar
+    
+    // Apply relocations to bytecode (.class files) and resource paths
     relocate 'instaparse', 'io.mantisrx.mql.shaded.instaparse'
     relocate 'clojure', 'io.mantisrx.mql.shaded.clojure'
     relocate 'rx.lang.clojure', 'io.mantisrx.mql.shaded.rx.lang.clojure'
+    
+    // Also transform .clj/.cljc source file CONTENTS with the same relocations
+    def clojureTransformer = new ClojureSourceRelocateTransformer()
+    clojureTransformer.relocate('instaparse', 'io.mantisrx.mql.shaded.instaparse')
+    clojureTransformer.relocate('clojure', 'io.mantisrx.mql.shaded.clojure')
+    clojureTransformer.relocate('rx.lang.clojure', 'io.mantisrx.mql.shaded.rx.lang.clojure')
+    transform(clojureTransformer)
+    
     configurations = [project.configurations.shadedAndRelocatedConfiguration] // shadowJar should only bundle dependencies on this configuration
 }
 

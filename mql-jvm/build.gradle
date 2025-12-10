@@ -39,6 +39,8 @@ import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContex
 import shadow.org.apache.tools.zip.ZipOutputStream
 import shadow.org.apache.tools.zip.ZipEntry
 import org.gradle.api.file.FileTreeElement
+import org.objectweb.asm.*
+
 
 /**
  * Custom transformer that rewrites .clj/.cljc source file CONTENTS during shading.
@@ -136,6 +138,81 @@ shadowJar {
     
     configurations = [project.configurations.shadedAndRelocatedConfiguration] // shadowJar should only bundle dependencies on this configuration
 }
+
+// Post-process the shadow JAR to fix string constants that shadowJar's relocate doesn't catch.
+// These are method descriptor strings like "void <init>(clojure.lang.Keyword)" used by
+// Clojure's compiler (via ASM's Method.getMethod()) for dynamic bytecode generation.
+// We use ASM to properly rewrite these strings without corrupting the class file structure.
+task fixClojureStringConstants {
+    dependsOn shadowJar
+    doLast {
+        def jarFile = shadowJar.archiveFile.get().asFile
+        def tempDir = file("${buildDir}/tmp/fixClojureStrings")
+        tempDir.deleteDir()
+        tempDir.mkdirs()
+        
+        // Extract the jar
+        ant.unzip(src: jarFile, dest: tempDir)
+        
+        // String replacements for method descriptors (order matters - longer patterns first)
+        def replacements = [
+            'rx.lang.clojure': 'io.mantisrx.mql.shaded.rx.lang.clojure',
+            'clojure.lang': 'io.mantisrx.mql.shaded.clojure.lang',
+            'clojure.core': 'io.mantisrx.mql.shaded.clojure.core',
+            'clojure.asm': 'io.mantisrx.mql.shaded.clojure.asm',
+            'clojure.java': 'io.mantisrx.mql.shaded.clojure.java',
+            'clojure.spec': 'io.mantisrx.mql.shaded.clojure.spec',
+            'instaparse': 'io.mantisrx.mql.shaded.instaparse',
+        ]
+        
+        // Process class files in the Clojure lang package (where Compiler lives)
+        fileTree(tempDir).matching { 
+            include 'io/mantisrx/mql/shaded/clojure/lang/*.class'
+        }.each { classFile ->
+            try {
+                def bytes = classFile.bytes
+                def reader = new ClassReader(bytes)
+                def writer = new ClassWriter(0)
+                
+                def cv = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                        def mv = super.visitMethod(access, name, descriptor, signature, exceptions)
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            void visitLdcInsn(Object value) {
+                                if (value instanceof String) {
+                                    String str = (String) value
+                                    replacements.each { pattern, replacement ->
+                                        str = str.replace(pattern, replacement)
+                                    }
+                                    super.visitLdcInsn(str)
+                                } else {
+                                    super.visitLdcInsn(value)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                reader.accept(cv, 0)
+                classFile.bytes = writer.toByteArray()
+            } catch (Exception e) {
+                println "Warning: Could not process ${classFile}: ${e.message}"
+            }
+        }
+        
+        // Repackage the jar
+        jarFile.delete()
+        ant.zip(destfile: jarFile, basedir: tempDir)
+        
+        // Cleanup
+        tempDir.deleteDir()
+    }
+}
+
+shadowJar.finalizedBy(fixClojureStringConstants)
+
 
 jar {
     enabled = false // this configuration is used to produce only the shadowed jar

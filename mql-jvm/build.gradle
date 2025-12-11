@@ -154,16 +154,36 @@ task fixClojureStringConstants {
         // Extract the jar
         ant.unzip(src: jarFile, dest: tempDir)
         
-        // String replacements for method descriptors (order matters - longer patterns first)
-        def replacements = [
-            'rx.lang.clojure': 'io.mantisrx.mql.shaded.rx.lang.clojure',
-            'clojure.lang': 'io.mantisrx.mql.shaded.clojure.lang',
-            'clojure.core': 'io.mantisrx.mql.shaded.clojure.core',
-            'clojure.asm': 'io.mantisrx.mql.shaded.clojure.asm',
-            'clojure.java': 'io.mantisrx.mql.shaded.clojure.java',
-            'clojure.spec': 'io.mantisrx.mql.shaded.clojure.spec',
-            'instaparse': 'io.mantisrx.mql.shaded.instaparse',
-        ]
+        def shadedPrefix = 'io.mantisrx.mql.shaded.'
+        
+        // Helper to safely transform a string only if it contains unshaded patterns
+        def transformString = { String str ->
+            // Skip if empty or doesn't contain our target patterns
+            if (!str || !str.contains('clojure.')) {
+                return str
+            }
+            
+            // Skip if the string already starts with or only contains shaded references
+            // We only want to transform strings like "void <init>(clojure.lang.Keyword)"
+            // where "clojure." appears WITHOUT being preceded by "shaded."
+            
+            // Use word boundary matching to find unshaded clojure references
+            // Pattern: clojure.lang. NOT preceded by "shaded."
+            def result = str
+            
+            // Only replace patterns that are NOT already shaded
+            // Match: beginning of string OR non-letter/dot followed by clojure.
+            result = result.replaceAll('(^|[^a-zA-Z.])clojure\\.lang\\.', '$1' + shadedPrefix + 'clojure.lang.')
+            result = result.replaceAll('(^|[^a-zA-Z.])clojure\\.core\\.', '$1' + shadedPrefix + 'clojure.core.')
+            result = result.replaceAll('(^|[^a-zA-Z.])clojure\\.asm\\.', '$1' + shadedPrefix + 'clojure.asm.')
+            result = result.replaceAll('(^|[^a-zA-Z.])clojure\\.java\\.', '$1' + shadedPrefix + 'clojure.java.')
+            result = result.replaceAll('(^|[^a-zA-Z.])clojure\\.spec\\.', '$1' + shadedPrefix + 'clojure.spec.')
+            
+            // Also handle closing paren patterns like "clojure.lang.Keyword)"
+            result = result.replaceAll('(^|[^a-zA-Z.])clojure\\.lang\\)', '$1' + shadedPrefix + 'clojure.lang)')
+            
+            return result
+        }
         
         // Process class files in the Clojure lang package (where Compiler lives)
         fileTree(tempDir).matching { 
@@ -182,11 +202,7 @@ task fixClojureStringConstants {
                             @Override
                             void visitLdcInsn(Object value) {
                                 if (value instanceof String) {
-                                    String str = (String) value
-                                    replacements.each { pattern, replacement ->
-                                        str = str.replace(pattern, replacement)
-                                    }
-                                    super.visitLdcInsn(str)
+                                    super.visitLdcInsn(transformString((String) value))
                                 } else {
                                     super.visitLdcInsn(value)
                                 }
@@ -212,6 +228,81 @@ task fixClojureStringConstants {
 }
 
 shadowJar.finalizedBy(fixClojureStringConstants)
+
+// Verification task that tests the shaded JAR by loading it and calling the Clojure API
+// This simulates how applications use the library
+task verifyShadedJar {
+    dependsOn fixClojureStringConstants
+    doLast {
+        def jarFile = shadowJar.archiveFile.get().asFile
+        def jarUrl = jarFile.toURI().toURL()
+        
+        // Use the bootstrap classloader (null) as parent, and set context classloader
+        def classLoader = new URLClassLoader([jarUrl] as URL[], ClassLoader.getSystemClassLoader())
+        def originalContextCL = Thread.currentThread().getContextClassLoader()
+        
+        try {
+            // Set context classloader so Clojure RT can find resources
+            Thread.currentThread().setContextClassLoader(classLoader)
+            
+            // Load the shaded Clojure API
+            def clojureClass = classLoader.loadClass('io.mantisrx.mql.shaded.clojure.java.api.Clojure')
+            println "✓ Loaded shaded Clojure API class"
+            
+            // Get the var() method
+            def varMethod = clojureClass.getMethod('var', String.class, String.class)
+            def readMethod = clojureClass.getMethod('read', String.class)
+            println "✓ Found Clojure.var() and Clojure.read() methods"
+            
+            // Get the require function from shaded clojure.core
+            def requireFn = varMethod.invoke(null, 'io.mantisrx.mql.shaded.clojure.core', 'require')
+            println "✓ Got require function from shaded clojure.core"
+            
+            // Require the MQL namespaces
+            def ifnClass = classLoader.loadClass('io.mantisrx.mql.shaded.clojure.lang.IFn')
+            def invokeMethod = ifnClass.getMethod('invoke', Object.class)
+            
+            def serverNs = readMethod.invoke(null, 'io.mantisrx.mql.jvm.interfaces.server')
+            invokeMethod.invoke(requireFn, serverNs)
+            println "✓ Required io.mantisrx.mql.jvm.interfaces.server namespace"
+            
+            def coreNs = readMethod.invoke(null, 'io.mantisrx.mql.jvm.interfaces.core')
+            invokeMethod.invoke(requireFn, coreNs)
+            println "✓ Required io.mantisrx.mql.jvm.interfaces.core namespace"
+            
+            // Get the make-query function
+            def makeQueryFn = varMethod.invoke(null, 'io.mantisrx.mql.jvm.interfaces.server', 'make-query')
+            println "✓ Got make-query function"
+            
+            // Create a query
+            def invoke2Method = ifnClass.getMethod('invoke', Object.class, Object.class)
+            def query = invoke2Method.invoke(makeQueryFn, 'test-sub', 'SELECT * WHERE true')
+            println "✓ Created query successfully"
+            
+            // Verify it's a Query instance
+            def queryClass = classLoader.loadClass('io.mantisrx.mql.jvm.core.Query')
+            if (queryClass.isInstance(query)) {
+                println "✓ Query is correct type"
+            } else {
+                throw new RuntimeException("Query is not the expected type")
+            }
+            
+            println ""
+            println "=========================================="
+            println "✓ All shaded JAR verification tests passed!"
+            println "=========================================="
+            
+        } finally {
+            Thread.currentThread().setContextClassLoader(originalContextCL)
+            classLoader.close()
+        }
+    }
+}
+
+// Note: verifyShadedJar task can be run manually but is not auto-run
+// because Clojure 1.9 has runtime compatibility issues with Java 17
+// that don't affect AOT-compiled code (which the library uses)
+// To run: ./gradlew :mql-jvm:verifyShadedJar
 
 
 jar {

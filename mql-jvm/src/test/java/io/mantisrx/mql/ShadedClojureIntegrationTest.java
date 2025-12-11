@@ -93,35 +93,42 @@ public class ShadedClojureIntegrationTest {
                 // Check .clj and .cljc source files for unshaded references
                 if (name.endsWith(".clj") || name.endsWith(".cljc")) {
                     if (name.startsWith("io/mantisrx/mql/shaded/")) {
-                        try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                                new java.io.InputStreamReader(jar.getInputStream(entry)))) {
-                            String line;
-                            int lineNum = 0;
-                            while ((line = reader.readLine()) != null) {
-                                lineNum++;
-                                // Check for unshaded clojure references (excluding comments)
-                                if (!line.trim().startsWith(";") && !line.trim().startsWith(";;")) {
-                                    // Pattern: clojure.lang. or clojure.core. (with dot) NOT preceded by 'shaded.'
-                                    // This pattern catches: clojure.lang.Keyword, clojure.core/require
-                                    // But NOT: rx.lang.clojure.core (which is correctly shaded)
-                                    java.util.regex.Pattern unshadedPattern = java.util.regex.Pattern.compile(
-                                        "(?<!shaded\\.)clojure\\.(lang|core|asm|java|spec)\\.");
-                                    if (unshadedPattern.matcher(line).find()) {
-                                        fail("Unshaded Clojure reference in " + name + ":" + lineNum + " -> " + line);
-                                    }
-                                    // Check for double-shading
-                                    if (line.contains("shaded.io.mantisrx.mql.shaded")) {
-                                        fail("Double-shaded reference in " + name + ":" + lineNum + " -> " + line);
-                                    }
-                                }
-                            }
-                        }
+                        verifyNoUnshadedReferences(jar, entry, name);
                     }
                 }
             }
         }
         
         System.out.println("✓ Shadow JAR verification passed - no unshaded references found!");
+    }
+    
+    @SuppressWarnings("PMD.DataflowAnomalyAnalysis")
+    private void verifyNoUnshadedReferences(java.util.jar.JarFile jar, 
+                                             java.util.jar.JarEntry entry, 
+                                             String name) throws Exception {
+        java.util.regex.Pattern unshadedPattern = java.util.regex.Pattern.compile(
+            "(?<!shaded\\.)clojure\\.(lang|core|asm|java|spec)\\.");
+        
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(jar.getInputStream(entry)))) {
+            java.util.List<String> lines = reader.lines().collect(java.util.stream.Collectors.toList());
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                int lineNum = i + 1;
+                // Skip comments
+                if (line.trim().startsWith(";") || line.trim().startsWith(";;")) {
+                    continue;
+                }
+                // Check for unshaded clojure references
+                if (unshadedPattern.matcher(line).find()) {
+                    fail("Unshaded Clojure reference in " + name + ":" + lineNum + " -> " + line);
+                }
+                // Check for double-shading
+                if (line.contains("shaded.io.mantisrx.mql.shaded")) {
+                    fail("Double-shaded reference in " + name + ":" + lineNum + " -> " + line);
+                }
+            }
+        }
     }
 
     @Test

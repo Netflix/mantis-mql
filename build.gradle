@@ -11,10 +11,8 @@ buildscript {
         classpath 'io.mantisrx:mantis-gradle-plugin:1.2.+'
         classpath "io.freefair.gradle:lombok-plugin:5.3.3.3"
         classpath 'eu.appsatori:gradle-fatjar-plugin:0.3'
-        classpath "com.github.jengelman.gradle.plugins:shadow:6.1.0"
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
         classpath 'com.palantir.baseline:gradle-baseline-java:6.81.0'
-        classpath 'gradle.plugin.com.github.johnrengelman:shadow:7.1.0'
         classpath 'com.netflix.nebula:nebula-clojure-plugin:15.0.1'
     }
 }
@@ -23,7 +21,6 @@ allprojects {
     apply plugin: 'nebula.netflixoss'
     apply plugin: 'nebula.release'
     apply plugin: 'nebula.clojure'
-    apply plugin: 'com.github.johnrengelman.shadow'
 
     // Disable license check for netflixoss gradle 7.x compatibility
     gradle.startParameter.excludedTaskNames += "licenseMain"

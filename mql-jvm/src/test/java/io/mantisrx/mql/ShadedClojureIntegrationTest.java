@@ -21,10 +21,12 @@ import io.mantisrx.mql.jvm.core.Query;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 /**
  * Integration test that verifies the MQL library works correctly via the Java/Clojure interop API.
@@ -37,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - Missing Clojure core functions
  * - Parser (instaparse) problems
  * - Namespace loading issues
+ * - Clojure + Java version compatibility (e.g., gvec.clj toArray issue)
  */
 public class ShadedClojureIntegrationTest {
 
@@ -54,6 +57,71 @@ public class ShadedClojureIntegrationTest {
         
         // Get the make-query function
         makeQuery = Clojure.var("io.mantisrx.mql.jvm.interfaces.server", "make-query");
+    }
+    
+    /**
+     * This test verifies the shadow JAR doesn't have unshaded Clojure references
+     * that would cause ClassNotFoundException at runtime.
+     * 
+     * It catches issues like:
+     * - clojure.lang.Keyword (unshaded)
+     * - Double-shading (io.mantisrx.mql.shaded.io.mantisrx.mql.shaded.clojure)
+     */
+    @Test
+    public void testShadedJarNoUnshadedReferences() throws Exception {
+        // Find the shadow JAR
+        File buildLibsDir = new File("build/libs");
+        File[] shadowJars = buildLibsDir.listFiles((dir, name) -> 
+            name.startsWith("mql-jvm-") && name.endsWith(".jar") && !name.contains("sources") && !name.contains("javadoc"));
+        
+        if (shadowJars == null || shadowJars.length == 0) {
+            // Skip if JAR not built yet
+            System.out.println("Shadow JAR not found, skipping verification test");
+            return;
+        }
+        
+        File jarFile = shadowJars[0];
+        System.out.println("Verifying shaded JAR: " + jarFile.getAbsolutePath());
+        
+        // Check for unshaded references in .clj files
+        try (java.util.jar.JarFile jar = new java.util.jar.JarFile(jarFile)) {
+            java.util.Enumeration<java.util.jar.JarEntry> entries = jar.entries();
+            while (entries.hasMoreElements()) {
+                java.util.jar.JarEntry entry = entries.nextElement();
+                String name = entry.getName();
+                
+                // Check .clj and .cljc source files for unshaded references
+                if (name.endsWith(".clj") || name.endsWith(".cljc")) {
+                    if (name.startsWith("io/mantisrx/mql/shaded/")) {
+                        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                                new java.io.InputStreamReader(jar.getInputStream(entry)))) {
+                            String line;
+                            int lineNum = 0;
+                            while ((line = reader.readLine()) != null) {
+                                lineNum++;
+                                // Check for unshaded clojure references (excluding comments)
+                                if (!line.trim().startsWith(";") && !line.trim().startsWith(";;")) {
+                                    // Pattern: clojure.lang. or clojure.core. (with dot) NOT preceded by 'shaded.'
+                                    // This pattern catches: clojure.lang.Keyword, clojure.core/require
+                                    // But NOT: rx.lang.clojure.core (which is correctly shaded)
+                                    java.util.regex.Pattern unshadedPattern = java.util.regex.Pattern.compile(
+                                        "(?<!shaded\\.)clojure\\.(lang|core|asm|java|spec)\\.");
+                                    if (unshadedPattern.matcher(line).find()) {
+                                        fail("Unshaded Clojure reference in " + name + ":" + lineNum + " -> " + line);
+                                    }
+                                    // Check for double-shading
+                                    if (line.contains("shaded.io.mantisrx.mql.shaded")) {
+                                        fail("Double-shaded reference in " + name + ":" + lineNum + " -> " + line);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        System.out.println("✓ Shadow JAR verification passed - no unshaded references found!");
     }
 
     @Test

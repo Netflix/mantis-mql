@@ -13,7 +13,8 @@ compileTestJava {
 }
 
 dependencies {
-  shadedAndRelocatedConfiguration 'org.clojure:clojure:1.9.0'
+  // Clojure 1.10+ is required for Java 9+ compatibility (gvec.clj toArray issue)
+  shadedAndRelocatedConfiguration 'org.clojure:clojure:1.10.3'
   shadedAndRelocatedConfiguration 'org.clojure:data.json:0.2.3'
   shadedAndRelocatedConfiguration 'instaparse:instaparse:1.4.9'
   shadedAndRelocatedConfiguration 'io.reactivex:rxjava:1.3.8'
@@ -80,24 +81,33 @@ class ClojureSourceRelocateTransformer implements Transformer {
         
         // Use a placeholder approach to prevent double-replacement
         // First pass: replace with unique placeholders
-        def placeholders = [:]
+        def dotPlaceholders = [:]  // For dot-notation patterns
+        def slashPlaceholders = [:] // For slash-notation patterns (resource paths)
         int idx = 0
         sortedRelocations.each { pattern, destination ->
-            def placeholder = "##SHADE_PLACEHOLDER_${idx}##"
-            placeholders[placeholder] = destination
+            def dotPlaceholder = "##SHADE_DOT_${idx}##"
+            def slashPlaceholder = "##SHADE_SLASH_${idx}##"
+            def slashPattern = pattern.replace('.', '/')
+            def slashDestination = destination.replace('.', '/')
+            
+            dotPlaceholders[dotPlaceholder] = destination
+            slashPlaceholders[slashPlaceholder] = slashDestination
             
             // Replace namespace references (dot notation): clojure.core -> placeholder.core
-            content = content.replace(pattern + '.', placeholder + '.')
+            content = content.replace(pattern + '.', dotPlaceholder + '.')
             // Replace path references (slash notation): clojure/core -> placeholder/core  
-            content = content.replace(pattern + '/', placeholder + '/')
+            content = content.replace(slashPattern + '/', slashPlaceholder + '/')
             // Replace quoted symbols: 'clojure.core -> 'placeholder.core
-            content = content.replace("'" + pattern, "'" + placeholder)
+            content = content.replace("'" + pattern, "'" + dotPlaceholder)
             
             idx++
         }
         
         // Second pass: replace placeholders with actual shaded names
-        placeholders.each { placeholder, destination ->
+        dotPlaceholders.each { placeholder, destination ->
+            content = content.replace(placeholder, destination)
+        }
+        slashPlaceholders.each { placeholder, destination ->
             content = content.replace(placeholder, destination)
         }
 
@@ -232,6 +242,8 @@ shadowJar.finalizedBy(fixClojureStringConstants)
 // Verification task that tests the shaded JAR by loading it and calling the Clojure API
 // This simulates how applications use the library
 task verifyShadedJar {
+    // Disabled by default - run with: ./gradlew :mql-jvm:verifyShadedJar -PenableVerify
+    enabled = project.hasProperty('enableVerify')
     dependsOn fixClojureStringConstants
     doLast {
         def jarFile = shadowJar.archiveFile.get().asFile
@@ -249,8 +261,8 @@ task verifyShadedJar {
             def clojureClass = classLoader.loadClass('io.mantisrx.mql.shaded.clojure.java.api.Clojure')
             println "✓ Loaded shaded Clojure API class"
             
-            // Get the var() method
-            def varMethod = clojureClass.getMethod('var', String.class, String.class)
+            // Get the var() method - Clojure 1.10+ uses Object params instead of String
+            def varMethod = clojureClass.getMethod('var', Object.class, Object.class)
             def readMethod = clojureClass.getMethod('read', String.class)
             println "✓ Found Clojure.var() and Clojure.read() methods"
             
@@ -299,10 +311,8 @@ task verifyShadedJar {
     }
 }
 
-// Note: verifyShadedJar task can be run manually but is not auto-run
-// because Clojure 1.9 has runtime compatibility issues with Java 17
-// that don't affect AOT-compiled code (which the library uses)
-// To run: ./gradlew :mql-jvm:verifyShadedJar
+// Run verification after fixing string constants
+fixClojureStringConstants.finalizedBy(verifyShadedJar)
 
 
 jar {

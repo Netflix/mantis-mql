@@ -35,9 +35,13 @@ dependencies {
 
 shadowJar {
     classifier null // this configuration is used to produce only the shadowed jar
-    relocate 'instaparse', 'io.mantisrx.mql.shaded.instaparse'
+    relocate('instaparse', 'io.mantisrx.mql.shaded.instaparse') {
+        exclude 'instaparse/macros.clj'
+    }
     relocate 'clojure', 'io.mantisrx.mql.shaded.clojure'
     relocate 'rx.lang.clojure', 'io.mantisrx.mql.shaded.rx.lang.clojure'
+    exclude 'io/mantisrx/mql/shaded/**/*.clj'
+    exclude 'io/mantisrx/mql/shaded/**/*.cljc'
     configurations = [project.configurations.shadedAndRelocatedConfiguration] // shadowJar should only bundle dependencies on this configuration
 }
 

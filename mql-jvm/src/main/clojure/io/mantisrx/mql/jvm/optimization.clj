@@ -42,24 +42,20 @@
 ;;;; Regex below defines a "word" for MQL optimization purposes.
 ;;;; This is any unit of text that we might consider an input token
 ;;;; to a regex which we might extract and use in other manners.
-;;;; Allows alphanumeric, _, :, double quotes, -, \., \:, \", \/, \(, \)
-;;;; This allows users to search JSON
+;;;; Allows any character that is a literal in a regex -- i.e. anything that is
+;;;; not a metacharacter -- plus a backslash escape of any metacharacter. Every
+;;;; character outside the metacharacter set matches only itself, so a pattern
+;;;; built solely from them is exactly a literal string.
 (def word-regex
-  #"(?:[A-Za-z0-9_:\"-]|\\\.|\\:|\\\"|\\/|\\\(|\\\)|\\\{|\\\})+"
+  #"(?:[^\\.*+?()\[\]{}|^$]|\\[.*+?()\[\]{}|^$\\/\"])+"
   )
 
+;;;; Strips the backslash from every escape word-regex admits. Single-pass and
+;;;; left-to-right, so an escaped backslash consumes its own escapee rather than
+;;;; being re-examined as the escape of the character after it.
 (defn unescape
   [x]
-  (-> x
-       (string/replace "\\:" ":")
-       (string/replace "\\." ".")
-       (string/replace "\\/" "/")
-       (string/replace "\\(" "(")
-       (string/replace "\\)" ")")
-       (string/replace "\\\"" "\"")
-       (string/replace "\\}" "}")
-       (string/replace "\\{" "{")
-       ))
+  (string/replace x #"\\([.*+?()\[\]{}|^$\\/\"])" "$1"))
 
 (def optimization-rules
   [

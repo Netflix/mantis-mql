@@ -56,27 +56,45 @@
     (or (nil? lhs) (nil? rhs)) false
     :else (operator lhs rhs)))
 
+(def ^:private nil-tolerant-operators
+  "The operators for which MQL considers nil an acceptable operand, see
+   check-predicate."
+  #{"=" "==" "!=" "<>"})
+
 (defn binary-expr->pred
   ([pred] pred)
   ([operand-a operator operand-b]
-   (let
-     [operator (ops operator)]
-     (with-meta #(let [operand-a (if (fn? operand-a) (operand-a %) operand-a)
-                       operand-b (if (fn? operand-b) (operand-b %) operand-b)]
-                   (check-predicate operator operand-a operand-b))
-                {:clause :where}))))
+   ;; Everything which can be decided while compiling the query is decided
+   ;; here, once: which operator function to call, whether that operator
+   ;; tolerates nil operands, and whether each operand is a function of the
+   ;; datum or a constant. The returned predicate runs per event, per query,
+   ;; so it does no reflection, no lookup and no metadata work.
+   (let [op      (ops operator)
+         nil-ok? (contains? nil-tolerant-operators operator)
+         a-fn?   (fn? operand-a)
+         b-fn?   (fn? operand-b)]
+     (fn [datum]
+       (let [lhs (if a-fn? (operand-a datum) operand-a)
+             rhs (if b-fn? (operand-b datum) operand-b)]
+         (if (or nil-ok? (and (some? lhs) (some? rhs)))
+           (op lhs rhs)
+           false))))))
 
 (defn star-binary-expr->pred
   [operand-a operator operand-b]
-  (let
-    [operator (ops operator)]
-    (with-meta #(let [rhs (if (fn? operand-b) (operand-b %) operand-b)]
-                  (if (some
-                        (fn [lhs] (check-predicate operator lhs rhs))
-                        (map :value (operand-a %)))
-                    true
-                    false))
-               {:clause :where})))
+  (let [op      (ops operator)
+        nil-ok? (contains? nil-tolerant-operators operator)
+        b-fn?   (fn? operand-b)]
+    (fn [datum]
+      (let [rhs (if b-fn? (operand-b datum) operand-b)]
+        (if (some
+              (fn [lhs]
+                (if (or nil-ok? (and (some? lhs) (some? rhs)))
+                  (op lhs rhs)
+                  false))
+              (map :value (operand-a datum)))
+          true
+          false)))))
 
 (defn search-condition->pred
   "Search conditions are used in the MQL spec to implement OR operations. Due to

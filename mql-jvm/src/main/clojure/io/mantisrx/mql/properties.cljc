@@ -21,7 +21,10 @@
   ([m k]
    (get m k nil))
   ([m k not-found]
-   (if (and (every? #(instance? % m) [List RandomAccess]) (integer? k))
+   ;; Written as two literal instance? forms rather than (every? ... [List
+   ;; RandomAccess]) so that the compiler emits bare instanceof checks instead
+   ;; of building a vector and running a seq traversal on every lookup.
+   (if (and (instance? List m) (instance? RandomAccess m) (integer? k))
      (let [^List m m
            size (.size m)
            k (int (if (neg? k) (+ k size) k))]

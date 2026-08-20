@@ -1,11 +1,12 @@
 (ns io.mantisrx.mql.compilers.core.operands
-  (:require [io.mantisrx.mql.properties :as mqlp])
+  (:require [io.mantisrx.mql.properties :as mqlp]
+            [io.mantisrx.mql.fnmeta :refer [fn-with-meta]])
   (:import java.util.Map)
   )
 
 (defn sw-property->fn
   [prop]
-  (with-meta
+  (fn-with-meta
     (fn [datum]
       (let
         [ks (filter (fn [^String k] (.startsWith k prop)) (keys datum))]
@@ -15,12 +16,12 @@
 (defn literal->fn
   [parse-fn literal & names]
   (let [l (parse-fn literal)]
-    (with-meta (fn [_] l) {:name [(str l)]})))
+    (fn-with-meta (fn [_] l) {:name [(str l)]})))
 
 (defn literal->fn-with-as
   [parse-fn literal & names]
   (let [l (parse-fn literal)]
-    (with-meta (fn [_] l) {:name (if (empty? names)
+    (fn-with-meta (fn [_] l) {:name (if (empty? names)
                                    [(str l)]
                                    (map str names)
                                    )})))  
@@ -33,8 +34,13 @@
    TODO: As clause is a little more complicated here because of the blob
    parameters. How to tell the last one from 'as' could add separate parse rule."
   [& props]
-  (with-meta 
-    #?(:clj (fn [obj] (mqlp/get-in obj props))
+  (fn-with-meta
+    #?(:clj (if (== 1 (count props))
+              ;; The overwhelmingly common case is a single, top level property.
+              ;; Bind the key once at compile time and do a direct lookup rather
+              ;; than reducing over a one element seq for every event.
+              (let [k (first props)] (fn [obj] (mqlp/get obj k)))
+              (fn [obj] (mqlp/get-in obj props)))
        :cljs (fn [obj] (get-in obj props nil)))
     {:name props}))
 
@@ -100,10 +106,10 @@
 
 (defn tick->operand
   [tick]
-  (with-meta (fn [_]
-               #?(:clj (System/currentTimeMillis)
-                  :cljs (.getTime (js/Date.))))
-             {:name ["tick"]}))
+  (fn-with-meta (fn [_]
+                  #?(:clj (System/currentTimeMillis)
+                     :cljs (.getTime (js/Date.))))
+                {:name ["tick"]}))
 
 
 (defn not-operand->operand
